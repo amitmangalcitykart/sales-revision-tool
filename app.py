@@ -6,7 +6,7 @@ from datetime import datetime as dt
 # Page Config
 # ----------------------------
 st.set_page_config(
-    page_title="Citykart Fixture Allocation Tool",
+    page_title="Citykart Sales Revision Tool",
     layout="wide"
 )
 
@@ -41,8 +41,8 @@ with col1:
     st.image("logo.png.webp", width=140)
 
 with col2:
-    st.markdown('<div class="big-title">Citykart Fixture Allocation Tool</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-text">Upload → Allocate → Download</div>', unsafe_allow_html=True)
+    st.markdown('<div class="big-title">Citykart Sales Revision Tool</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-text">Upload → Revised → Download</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
@@ -142,7 +142,4 @@ if st.button("🚀 Apply Changes"):
         data=csv,
         file_name=f"output_{dt.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv"
-
     )
-
-
