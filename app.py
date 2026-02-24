@@ -16,11 +16,16 @@ st.title("Sales Revision Tool")
 # -------------------------------
 # Load Data
 # -------------------------------
-@st.cache_data
-def load_data():
-    return pd.read_csv(r"D:\Input.csv")
+st.subheader("📂 Upload Input File")
 
-df = load_data()
+uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.success("File Uploaded Successfully")
+else:
+    st.warning("Please upload a CSV file to continue.")
+    st.stop()
 
 st.success("Data Loaded Successfully")
 
@@ -105,3 +110,4 @@ if st.button("🚀 Apply Changes"):
         mime="text/csv"
 
     )
+
