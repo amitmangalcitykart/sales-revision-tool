@@ -1,33 +1,67 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime as dt
-import os
 
-# -------------------------------
+# ----------------------------
 # Page Config
-# -------------------------------
-st.set_page_config(page_title="Sales Revision Tool", layout="wide")
+# ----------------------------
+st.set_page_config(
+    page_title="Citykart Fixture Allocation Tool",
+    layout="wide"
+)
 
-st.title("📊 Sales Revision Tool")
+# ----------------------------
+# Custom Styling
+# ----------------------------
+st.markdown("""
+<style>
+.big-title {
+    font-size:48px !important;
+    font-weight:800;
+    color:#c62828;
+}
+.sub-text {
+    font-size:20px;
+    color:#2e7d32;
+}
+.section-divider {
+    border-top: 1px solid #ddd;
+    margin-top: 20px;
+    margin-bottom: 30px;
+}
+</style>
+""", unsafe_allow_html=True)
 
-st.image("logo.png.webp", width=200)
-st.title("Sales Revision Tool")
+# ----------------------------
+# Header Layout
+# ----------------------------
+col1, col2 = st.columns([1,5])
 
-# -------------------------------
-# Load Data
-# -------------------------------
-st.subheader("📂 Upload Input File")
+with col1:
+    st.image("logo.png.webp", width=140)
 
-uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+with col2:
+    st.markdown('<div class="big-title">Citykart Fixture Allocation Tool</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-text">Upload → Allocate → Download</div>', unsafe_allow_html=True)
+
+st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+
+# ----------------------------
+# Upload Section
+# ----------------------------
+st.subheader("Upload CSV File")
+
+uploaded_file = st.file_uploader(
+    "Drag and drop file here or browse",
+    type=["csv"]
+)
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     st.success("File Uploaded Successfully")
 else:
-    st.warning("Please upload a CSV file to continue.")
+    st.info("Please upload a CSV file to continue.")
     st.stop()
-
-st.success("Data Loaded Successfully")
 
 # -------------------------------
 # Filter Section
@@ -110,4 +144,5 @@ if st.button("🚀 Apply Changes"):
         mime="text/csv"
 
     )
+
 
