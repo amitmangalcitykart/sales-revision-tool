@@ -11,127 +11,81 @@ st.set_page_config(
 )
 
 # ----------------------------
-# Custom Styling
-# ----------------------------
-st.markdown("""
-<style>
-.big-title {
-    font-size:48px !important;
-    font-weight:800;
-    color:#c62828;
-}
-.sub-text {
-    font-size:20px;
-    color:#2e7d32;
-}
-.section-divider {
-    border-top: 1px solid #ddd;
-    margin-top: 20px;
-    margin-bottom: 30px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ----------------------------
-# Header Layout
+# Header
 # ----------------------------
 col1, col2 = st.columns([1,5])
 
 with col1:
-    st.image("logo.png.webp", width=140)
+    try:
+        st.image("logo.png.webp", width=130)
+    except:
+        pass
 
 with col2:
-    st.markdown('<div class="big-title">Citykart Sales Revision Tool</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-text">Upload → Revised → Download</div>', unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#c62828;'>Citykart Sales Revision Tool</h1>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color:#2e7d32;'>Upload → Filter → Revise → Download</h4>", unsafe_allow_html=True)
 
-st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+st.markdown("---")
 
 # ----------------------------
-# Upload Section
+# Upload CSV
 # ----------------------------
-st.subheader("Upload CSV File")
+uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
 
-uploaded_file = st.file_uploader(
-    "Drag and drop file here or browse",
-    type=["csv"]
-)
-
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    st.success("File Uploaded Successfully")
-else:
+if uploaded_file is None:
     st.info("Please upload a CSV file to continue.")
     st.stop()
 
-# -------------------------------
-# Filter Section
-# -------------------------------
+df = pd.read_csv(uploaded_file)
+st.success("File Uploaded Successfully")
+
+# ----------------------------
+# Detect Columns
+# ----------------------------
+numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+non_numeric_cols = df.select_dtypes(exclude=["number"]).columns.tolist()
+
+# ----------------------------
+# Dynamic Filters (All Non Numeric)
+# ----------------------------
 st.subheader("🔎 Select Filters")
 
-# Start with full dataset
 filtered_df = df.copy()
+user_filters = {}
 
-col1, col2, col3 = st.columns(3)
+cols = st.columns(3)
 
-# ------------------------
-# STORE
-# ------------------------
-with col1:
-    store_options = sorted(filtered_df["STORE"].dropna().unique())
-    selected_store = st.multiselect("STORE", store_options)
+for i, col in enumerate(non_numeric_cols):
 
-if selected_store:
-    filtered_df = filtered_df[filtered_df["STORE"].isin(selected_store)]
+    with cols[i % 3]:
+        options = sorted(filtered_df[col].dropna().unique())
+        selected = st.multiselect(col, options)
 
-# ------------------------
-# DIVISION
-# ------------------------
-with col2:
-    division_options = sorted(filtered_df["DIVISION"].dropna().unique())
-    selected_division = st.multiselect("DIVISION", division_options)
+        if selected:
+            filtered_df = filtered_df[filtered_df[col].isin(selected)]
+            user_filters[col] = selected
 
-if selected_division:
-    filtered_df = filtered_df[filtered_df["DIVISION"].isin(selected_division)]
+st.write(f"Rows Selected: {len(filtered_df)}")
 
-# ------------------------
-# SECTION
-# ------------------------
-with col3:
-    section_options = sorted(filtered_df["SECTION"].dropna().unique())
-    selected_section = st.multiselect("SECTION", section_options)
+st.markdown("---")
 
-if selected_section:
-    filtered_df = filtered_df[filtered_df["SECTION"].isin(selected_section)]
+# ----------------------------
+# Numeric Column Selection
+# ----------------------------
+st.subheader("📊 Select Numeric Column For Calculation")
 
-# ------------------------
-# Next Row Filters
-# ------------------------
-col4, col5, col6 = st.columns(3)
+if not numeric_cols:
+    st.error("No numeric columns found in file.")
+    st.stop()
 
-with col4:
-    dept_options = sorted(filtered_df["DEPARTMENT"].dropna().unique())
-    selected_dept = st.multiselect("DEPARTMENT", dept_options)
+selected_numeric_col = st.selectbox(
+    "Choose Numeric Column",
+    numeric_cols
+)
 
-if selected_dept:
-    filtered_df = filtered_df[filtered_df["DEPARTMENT"].isin(selected_dept)]
-
-with col5:
-    article_options = sorted(filtered_df["ARTICLE_NAME"].dropna().unique())
-    selected_article = st.multiselect("ARTICLE_NAME", article_options)
-
-if selected_article:
-    filtered_df = filtered_df[filtered_df["ARTICLE_NAME"].isin(selected_article)]
-
-with col6:
-    concept_options = sorted(filtered_df["CONCEPT"].dropna().unique())
-    selected_concept = st.multiselect("CONCEPT", concept_options)
-
-if selected_concept:
-    filtered_df = filtered_df[filtered_df["CONCEPT"].isin(selected_concept)]
-
-# -------------------------------
+# ----------------------------
 # Percentage Section
-# -------------------------------
+# ----------------------------
 st.subheader("📈 Percentage Settings")
 
 percent = st.number_input("Enter Percentage", min_value=0.0, step=1.0)
@@ -141,14 +95,15 @@ mode = st.radio(
     ["Increase %", "Decrease %", "Direct %"]
 )
 
-# -------------------------------
+# ----------------------------
 # Apply Function
-# -------------------------------
-def apply_percentage(df, filters: dict, percent: float, mode):
+# ----------------------------
+def apply_percentage(df, filters, numeric_column, percent, mode):
 
     df_result = df.copy()
     mask = pd.Series(True, index=df_result.index)
 
+    # Apply filters
     for col, values in filters.items():
         mask &= df_result[col].astype(str).isin(values)
 
@@ -157,56 +112,38 @@ def apply_percentage(df, filters: dict, percent: float, mode):
         multiplier = 1 + percent / 100
     elif mode == "Decrease %":
         multiplier = 1 - percent / 100
-    else:  # Direct %
+    else:
         multiplier = percent / 100
 
-    df_result["SL_Q_NEW"] = df_result["SL_Q"]
-    df_result["SL_V_NEW"] = df_result["SL_V"]
+    # Create revised column
+    new_col_name = f"{numeric_column}_REVISED"
 
-    df_result.loc[mask, "SL_Q_NEW"] = df_result.loc[mask, "SL_Q"] * multiplier
-    df_result.loc[mask, "SL_V_NEW"] = df_result.loc[mask, "SL_V"] * multiplier
+    df_result[new_col_name] = df_result[numeric_column]
+    df_result.loc[mask, new_col_name] = (
+        df_result.loc[mask, numeric_column] * multiplier
+    )
 
     df_result["STATUS"] = "SAME"
     df_result.loc[mask, "STATUS"] = "REVISED"
 
     return df_result
 
-# -------------------------------
-# Prepare Filter Dictionary
-# -------------------------------
-user_filters = {}
-
-if selected_store:
-    user_filters["STORE"] = selected_store
-
-if selected_division:
-    user_filters["DIVISION"] = selected_division
-
-if selected_section:
-    user_filters["SECTION"] = selected_section
-
-if selected_dept:
-    user_filters["DEPARTMENT"] = selected_dept
-
-if selected_article:
-    user_filters["ARTICLE_NAME"] = selected_article
-
-if selected_concept:
-    user_filters["CONCEPT"] = selected_concept
-
-
-st.write(f"Rows Selected For Revision: {len(filtered_df)}")
-
-# -------------------------------
-# Button Action
-# -------------------------------
+# ----------------------------
+# Apply Button
+# ----------------------------
 if st.button("🚀 Apply Changes"):
 
     if percent == 0:
         st.warning("Please enter percentage greater than 0")
         st.stop()
 
-    result_df = apply_percentage(df, user_filters, percent, mode)
+    result_df = apply_percentage(
+        df,
+        user_filters,
+        selected_numeric_col,
+        percent,
+        mode
+    )
 
     st.success("Calculation Completed")
 
