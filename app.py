@@ -10,7 +10,7 @@ st.set_page_config(page_title="Sales Revision Tool", layout="wide")
 
 st.title("📊 Sales Revision Tool")
 
-st.image("logo.png", width=200)
+st.image("logo.png.webp", width=200)
 st.title("Sales Revision Tool")
 
 # -------------------------------
@@ -103,4 +103,5 @@ if st.button("🚀 Apply Changes"):
         data=csv,
         file_name=f"output_{dt.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv"
+
     )
