@@ -47,7 +47,14 @@ def read_file_safe(file):
     # ---------- CSV ----------
     if file_name.endswith(".csv"):
 
-        encodings = ["utf-8", "latin1", "ISO-8859-1", "cp1252"]
+        encodings = [
+            "utf-8",
+            "utf-8-sig",
+            "latin1",
+            "ISO-8859-1",
+            "cp1252",
+            "utf-16"
+        ]
 
         for enc in encodings:
             try:
@@ -56,12 +63,13 @@ def read_file_safe(file):
                     file,
                     encoding=enc,
                     sep=None,
-                    engine="python"
+                    engine="python",
+                    on_bad_lines="skip"
                 )
-            except:
+            except Exception:
                 continue
 
-        st.error("Unable to read CSV file.")
+        st.error("❌ Unable to read CSV file format.")
         st.stop()
 
     # ---------- EXCEL ----------
