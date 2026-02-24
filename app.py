@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime as dt
+import csv
 
 # ----------------------------
 # Page Config
@@ -47,48 +48,46 @@ def read_file_safe(file):
     # ---------- CSV ----------
     if file_name.endswith(".csv"):
 
-        encodings = [
-            "utf-8",
-            "utf-8-sig",
-            "latin1",
-            "ISO-8859-1",
-            "cp1252",
-            "utf-16"
-        ]
+        encodings = ["utf-8", "latin1", "cp1252"]
 
         for enc in encodings:
             try:
                 file.seek(0)
+
+                # Detect delimiter automatically
+                sample = file.read(5000).decode(enc)
+                file.seek(0)
+
+                dialect = csv.Sniffer().sniff(sample)
+
                 return pd.read_csv(
                     file,
                     encoding=enc,
-                    sep=None,
-                    engine="python",
-                    on_bad_lines="skip"
+                    delimiter=dialect.delimiter,
+                    engine="python"
                 )
-            except Exception:
+
+            except:
                 continue
 
-        st.error("❌ Unable to read CSV file format.")
+        st.error("Unable to read CSV file format.")
         st.stop()
 
     # ---------- EXCEL ----------
     elif file_name.endswith((".xlsx", ".xls")):
+
         try:
             excel_file = pd.ExcelFile(file)
 
-            if len(excel_file.sheet_names) > 1:
-                sheet = st.selectbox(
-                    "Select Sheet",
-                    excel_file.sheet_names
-                )
-            else:
-                sheet = excel_file.sheet_names[0]
+            sheet = st.selectbox(
+                "Select Sheet",
+                excel_file.sheet_names
+            )
 
             return excel_file.parse(sheet)
 
-        except:
-            st.error("Unable to read Excel file.")
+        except Exception as e:
+            st.error(f"Excel read error: {e}")
             st.stop()
 
 df = read_file_safe(uploaded_file)
