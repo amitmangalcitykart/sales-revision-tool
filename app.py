@@ -68,18 +68,66 @@ else:
 # -------------------------------
 st.subheader("🔎 Select Filters")
 
-filter_columns = [col for col in df.columns if col not in ["SL_Q", "SL_V"]]
+# Start with full dataset
+filtered_df = df.copy()
 
-user_filters = {}
+col1, col2, col3 = st.columns(3)
 
-cols = st.columns(3)
+# ------------------------
+# STORE
+# ------------------------
+with col1:
+    store_options = sorted(filtered_df["STORE"].dropna().unique())
+    selected_store = st.multiselect("STORE", store_options)
 
-for i, col in enumerate(filter_columns):
-    with cols[i % 3]:
-        options = sorted(df[col].dropna().astype(str).unique())
-        selected = st.multiselect(f"{col}", options)
-        if selected:
-            user_filters[col] = selected
+if selected_store:
+    filtered_df = filtered_df[filtered_df["STORE"].isin(selected_store)]
+
+# ------------------------
+# DIVISION
+# ------------------------
+with col2:
+    division_options = sorted(filtered_df["DIVISION"].dropna().unique())
+    selected_division = st.multiselect("DIVISION", division_options)
+
+if selected_division:
+    filtered_df = filtered_df[filtered_df["DIVISION"].isin(selected_division)]
+
+# ------------------------
+# SECTION
+# ------------------------
+with col3:
+    section_options = sorted(filtered_df["SECTION"].dropna().unique())
+    selected_section = st.multiselect("SECTION", section_options)
+
+if selected_section:
+    filtered_df = filtered_df[filtered_df["SECTION"].isin(selected_section)]
+
+# ------------------------
+# Next Row Filters
+# ------------------------
+col4, col5, col6 = st.columns(3)
+
+with col4:
+    dept_options = sorted(filtered_df["DEPARTMENT"].dropna().unique())
+    selected_dept = st.multiselect("DEPARTMENT", dept_options)
+
+if selected_dept:
+    filtered_df = filtered_df[filtered_df["DEPARTMENT"].isin(selected_dept)]
+
+with col5:
+    article_options = sorted(filtered_df["ARTICLE_NAME"].dropna().unique())
+    selected_article = st.multiselect("ARTICLE_NAME", article_options)
+
+if selected_article:
+    filtered_df = filtered_df[filtered_df["ARTICLE_NAME"].isin(selected_article)]
+
+with col6:
+    concept_options = sorted(filtered_df["CONCEPT"].dropna().unique())
+    selected_concept = st.multiselect("CONCEPT", concept_options)
+
+if selected_concept:
+    filtered_df = filtered_df[filtered_df["CONCEPT"].isin(selected_concept)]
 
 # -------------------------------
 # Percentage Section
@@ -124,9 +172,39 @@ def apply_percentage(df, filters: dict, percent: float, mode):
     return df_result
 
 # -------------------------------
+# Prepare Filter Dictionary
+# -------------------------------
+user_filters = {}
+
+if selected_store:
+    user_filters["STORE"] = selected_store
+
+if selected_division:
+    user_filters["DIVISION"] = selected_division
+
+if selected_section:
+    user_filters["SECTION"] = selected_section
+
+if selected_dept:
+    user_filters["DEPARTMENT"] = selected_dept
+
+if selected_article:
+    user_filters["ARTICLE_NAME"] = selected_article
+
+if selected_concept:
+    user_filters["CONCEPT"] = selected_concept
+
+
+st.write(f"Rows Selected For Revision: {len(filtered_df)}")
+
+# -------------------------------
 # Button Action
 # -------------------------------
 if st.button("🚀 Apply Changes"):
+
+    if percent == 0:
+        st.warning("Please enter percentage greater than 0")
+        st.stop()
 
     result_df = apply_percentage(df, user_filters, percent, mode)
 
@@ -134,7 +212,6 @@ if st.button("🚀 Apply Changes"):
 
     st.dataframe(result_df, use_container_width=True)
 
-    # Download Option
     csv = result_df.to_csv(index=False).encode("utf-8")
 
     st.download_button(
