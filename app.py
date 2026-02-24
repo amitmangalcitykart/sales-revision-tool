@@ -6,7 +6,7 @@ from datetime import datetime as dt
 # Page Config
 # ----------------------------
 st.set_page_config(
-    page_title="Citykart Sales Revision Tool",
+    page_title="Citykart Revision Tool",
     layout="wide"
 )
 
@@ -22,7 +22,7 @@ with col1:
         pass
 
 with col2:
-    st.markdown("<h1 style='color:#c62828;'>Citykart Sales Revision Tool</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#c62828;'>Citykart Revision Tool</h1>", unsafe_allow_html=True)
     st.markdown("<h4 style='color:#2e7d32;'>Upload → Filter → Revise → Download</h4>", unsafe_allow_html=True)
 
 st.markdown("---")
@@ -163,3 +163,4 @@ if st.button("🚀 Apply Changes"):
         file_name=f"output_{dt.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv"
     )
+
