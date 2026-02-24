@@ -30,13 +30,60 @@ st.markdown("---")
 # ----------------------------
 # Upload CSV
 # ----------------------------
-uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+uploaded_file = st.file_uploader(
+    "Upload File",
+    type=["csv", "xlsx", "xls"]
+)
 
 if uploaded_file is None:
     st.info("Please upload a CSV file to continue.")
     st.stop()
 
-df = pd.read_csv(uploaded_file)
+
+def read_file_safe(file):
+
+    file_name = file.name.lower()
+
+    # ---------- CSV ----------
+    if file_name.endswith(".csv"):
+
+        encodings = ["utf-8", "latin1", "ISO-8859-1", "cp1252"]
+
+        for enc in encodings:
+            try:
+                file.seek(0)
+                return pd.read_csv(
+                    file,
+                    encoding=enc,
+                    sep=None,
+                    engine="python"
+                )
+            except:
+                continue
+
+        st.error("Unable to read CSV file.")
+        st.stop()
+
+    # ---------- EXCEL ----------
+    elif file_name.endswith((".xlsx", ".xls")):
+        try:
+            excel_file = pd.ExcelFile(file)
+
+            if len(excel_file.sheet_names) > 1:
+                sheet = st.selectbox(
+                    "Select Sheet",
+                    excel_file.sheet_names
+                )
+            else:
+                sheet = excel_file.sheet_names[0]
+
+            return excel_file.parse(sheet)
+
+        except:
+            st.error("Unable to read Excel file.")
+            st.stop()
+
+df = read_file_safe(uploaded_file)
 
 # Reset filters when new file uploaded
 if "last_file" not in st.session_state:
