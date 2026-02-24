@@ -78,8 +78,8 @@ if not numeric_cols:
     st.error("No numeric columns found in file.")
     st.stop()
 
-selected_numeric_col = st.selectbox(
-    "Choose Numeric Column",
+selected_numeric_cols = st.multiselect(
+    "Choose Numeric Column(s)",
     numeric_cols
 )
 
@@ -98,7 +98,7 @@ mode = st.radio(
 # ----------------------------
 # Apply Function
 # ----------------------------
-def apply_percentage(df, filters, numeric_column, percent, mode):
+def apply_percentage(df, filters, numeric_columns, percent, mode):
 
     df_result = df.copy()
     mask = pd.Series(True, index=df_result.index)
@@ -115,13 +115,15 @@ def apply_percentage(df, filters, numeric_column, percent, mode):
     else:
         multiplier = percent / 100
 
-    # Create revised column
-    new_col_name = f"{numeric_column}_REVISED"
+    # Apply calculation to selected numeric columns
+    for numeric_column in numeric_columns:
 
-    df_result[new_col_name] = df_result[numeric_column]
-    df_result.loc[mask, new_col_name] = (
-        df_result.loc[mask, numeric_column] * multiplier
-    )
+        new_col_name = f"{numeric_column}_REVISED"
+
+        df_result[new_col_name] = df_result[numeric_column]
+        df_result.loc[mask, new_col_name] = (
+            df_result.loc[mask, numeric_column] * multiplier
+        )
 
     df_result["STATUS"] = "SAME"
     df_result.loc[mask, "STATUS"] = "REVISED"
@@ -137,10 +139,14 @@ if st.button("🚀 Apply Changes"):
         st.warning("Please enter percentage greater than 0")
         st.stop()
 
+    if not selected_numeric_cols:
+        st.warning("Please select at least one numeric column")
+        st.stop()
+
     result_df = apply_percentage(
         df,
         user_filters,
-        selected_numeric_col,
+        selected_numeric_cols,
         percent,
         mode
     )
