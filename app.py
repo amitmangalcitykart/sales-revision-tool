@@ -45,37 +45,37 @@ def read_file_safe(file):
 
     file_name = file.name.lower()
 
-    # ---------- CSV ----------
+    # ---------------- CSV ----------------
     if file_name.endswith(".csv"):
 
         encodings = ["utf-8", "latin1", "cp1252"]
 
+        separators = [",", ";", "\t", "|"]
+
         for enc in encodings:
-            try:
-                file.seek(0)
+            for sep in separators:
+                try:
+                    file.seek(0)
 
-                # Detect delimiter automatically
-                sample = file.read(5000).decode(enc)
-                file.seek(0)
+                    df = pd.read_csv(
+                        file,
+                        encoding=enc,
+                        sep=sep,
+                        engine="python"
+                    )
 
-                dialect = csv.Sniffer().sniff(sample)
+                    # valid read check
+                    if df.shape[1] > 1:
+                        return df
 
-                return pd.read_csv(
-                    file,
-                    encoding=enc,
-                    delimiter=dialect.delimiter,
-                    engine="python"
-                )
+                except:
+                    continue
 
-            except:
-                continue
-
-        st.error("Unable to read CSV file format.")
+        st.error("CSV format not supported or corrupted.")
         st.stop()
 
-    # ---------- EXCEL ----------
+    # ---------------- EXCEL ----------------
     elif file_name.endswith((".xlsx", ".xls")):
-
         try:
             excel_file = pd.ExcelFile(file)
 
@@ -89,6 +89,10 @@ def read_file_safe(file):
         except Exception as e:
             st.error(f"Excel read error: {e}")
             st.stop()
+
+    else:
+        st.error("Unsupported file type.")
+        st.stop()
 
 df = read_file_safe(uploaded_file)
 
