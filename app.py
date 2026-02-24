@@ -37,7 +37,32 @@ if uploaded_file is None:
     st.stop()
 
 df = pd.read_csv(uploaded_file)
+
+# Reset filters when new file uploaded
+if "last_file" not in st.session_state:
+    st.session_state.last_file = uploaded_file.name
+
+if st.session_state.last_file != uploaded_file.name:
+    st.session_state.filters = {}
+    st.session_state.last_file = uploaded_file.name
 st.success("File Uploaded Successfully")
+
+# Try converting comma-separated numbers to numeric
+for col in df.columns:
+
+    if df[col].dtype == "object":
+
+        cleaned_col = (
+            df[col]
+            .astype(str)
+            .str.replace(",", "", regex=False)
+        )
+
+        converted = pd.to_numeric(cleaned_col, errors="coerce")
+
+        # If majority values numeric → convert column
+        if converted.notna().sum() > len(df) * 0.5:
+            df[col] = converted
 
 # ----------------------------
 # Detect Columns
@@ -50,22 +75,55 @@ non_numeric_cols = df.select_dtypes(exclude=["number"]).columns.tolist()
 # ----------------------------
 st.subheader("🔎 Select Filters")
 
-filtered_df = df.copy()
-user_filters = {}
+# Non numeric columns
+numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+filter_columns = [col for col in df.columns if col not in numeric_cols]
+
+# Session state store selections
+if "filters" not in st.session_state or \
+   set(st.session_state.filters.keys()) != set(filter_columns):
+
+    st.session_state.filters = {col: [] for col in filter_columns}
+
+user_filters = st.session_state.filters
 
 cols = st.columns(3)
 
-for i, col in enumerate(non_numeric_cols):
+for i, col in enumerate(filter_columns):
 
     with cols[i % 3]:
-        options = sorted(filtered_df[col].dropna().unique())
-        selected = st.multiselect(col, options)
 
-        if selected:
-            filtered_df = filtered_df[filtered_df[col].isin(selected)]
-            user_filters[col] = selected
+        # Apply OTHER filters except current column
+        temp_df = df
 
-st.write(f"Rows Selected: {len(filtered_df)}")
+        for other_col, values in user_filters.items():
+            if other_col != col and values:
+                temp_df = temp_df[temp_df[other_col].isin(values)]
+
+        options = sorted(temp_df[col].dropna().unique())
+
+        selected = st.multiselect(
+            col,
+            options,
+            default=user_filters[col],
+            key=f"filter_{col}"
+        )
+
+        user_filters[col] = selected
+
+# -------------------------------
+# Build Final Filtered Dataset
+# -------------------------------
+filtered_df = df.copy()
+
+for col, values in user_filters.items():
+    if values:
+        filtered_df = filtered_df[filtered_df[col].isin(values)]
+
+c1, c2 = st.columns(2)
+
+c1.metric("Total Rows", f"{len(df):,}")
+c2.metric("Filtered Rows", f"{len(filtered_df):,}")
 
 st.markdown("---")
 
@@ -125,10 +183,14 @@ def apply_percentage(df, filters, numeric_columns, percent, mode):
             df_result.loc[mask, numeric_column] * multiplier
         )
 
-    df_result["STATUS"] = "SAME"
-    df_result.loc[mask, "STATUS"] = "REVISED"
+    df_result["NEW_STATUS"] = "SAME"
+    df_result.loc[mask, "NEW_STATUS"] = "REVISED"
 
     return df_result
+
+st.info(
+    f"Rows Impacted After Apply: {len(filtered_df):,}"
+)
 
 # ----------------------------
 # Apply Button
@@ -163,4 +225,3 @@ if st.button("🚀 Apply Changes"):
         file_name=f"output_{dt.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv"
     )
-
