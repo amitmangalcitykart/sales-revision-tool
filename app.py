@@ -152,11 +152,22 @@ for i, col in enumerate(filter_columns):
     with cols[i % 3]:
 
         # Apply OTHER filters except current column
-        temp_df = df
+        temp_df = df.copy()
 
-        for other_col, values in user_filters.items():
-            if other_col != col and values:
-                temp_df = temp_df[temp_df[other_col].isin(values)]
+        # Apply all other selected filters
+        for other_col in filter_columns:
+
+            if other_col == col:
+                continue
+
+            selected_vals = user_filters.get(other_col, [])
+
+            if selected_vals:
+                temp_df = temp_df[
+                    temp_df[other_col].astype(str).isin(
+                        list(map(str, selected_vals))
+                    )
+                ]
 
         options = sorted(temp_df[col].dropna().unique())
 
