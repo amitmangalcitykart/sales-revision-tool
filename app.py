@@ -157,9 +157,6 @@ for i, col in enumerate(filter_columns):
         # Apply all other selected filters
         for other_col , selected_vals in user_filters.items():
 
-            if other_col == col:
-                continue
-
             if selected_vals:
                 temp_df = temp_df[
                     temp_df[other_col].astype(str).isin(
