@@ -172,7 +172,7 @@ for i, col in enumerate(filter_columns):
         selected = st.multiselect(
             col,
             options,
-            default=user_filters.get[col,[]],
+            default=user_filters.get(col,[]),
             key=f"filter_{col}"
         )
 
