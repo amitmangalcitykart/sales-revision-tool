@@ -280,9 +280,10 @@ if st.button("🚀 Apply Changes"):
         st.warning("Please enter percentage greater than 0")
         st.stop()
 
+    # ✅ If user didn't select numeric column → take all
     if not selected_numeric_cols:
-        st.warning("Please select at least one numeric column")
-        st.stop()
+        selected_numeric_cols = numeric_cols
+        st.info("No numeric column selected → Applying on ALL numeric columns")
 
     active_filters = {
         k: v for k, v in user_filters.items() if v
