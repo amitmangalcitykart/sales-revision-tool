@@ -155,12 +155,10 @@ for i, col in enumerate(filter_columns):
         temp_df = df.copy()
 
         # Apply all other selected filters
-        for other_col in filter_columns:
+        for other_col , selected_vals in user_filters.items():
 
             if other_col == col:
                 continue
-
-            selected_vals = user_filters.get(other_col, [])
 
             if selected_vals:
                 temp_df = temp_df[
@@ -169,12 +167,12 @@ for i, col in enumerate(filter_columns):
                     )
                 ]
 
-        options = sorted(temp_df[col].dropna().unique())
+        options = sorted(temp_df[col].dropna().astype(str).unique())
 
         selected = st.multiselect(
             col,
             options,
-            default=user_filters[col],
+            default=user_filters.get[col,[]],
             key=f"filter_{col}"
         )
 
