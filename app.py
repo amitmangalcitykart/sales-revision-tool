@@ -230,9 +230,19 @@ def apply_percentage(df, filters, numeric_columns, percent, mode):
     df_result = df.copy()
     mask = pd.Series(True, index=df_result.index)
 
-    # Apply filters
+    any_filter_applied = False
+
     for col, values in filters.items():
-        mask &= df_result[col].astype(str).isin(values)
+
+        if values:   # only apply when user selected something
+            any_filter_applied = True
+            mask &= df_result[col].astype(str).isin(
+                list(map(str, values))
+            )
+
+    # If no filters selected → select all rows
+    if not any_filter_applied:
+        mask[:] = True
 
     # Multiplier logic
     if mode == "Increase %":
@@ -274,9 +284,13 @@ if st.button("🚀 Apply Changes"):
         st.warning("Please select at least one numeric column")
         st.stop()
 
+    active_filters = {
+        k: v for k, v in user_filters.items() if v
+    }
+
     result_df = apply_percentage(
         df,
-        user_filters,
+        active_filters,
         selected_numeric_cols,
         percent,
         mode
