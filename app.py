@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime as dt
 import csv
+import re
 
 # ----------------------------
 # Page Config
@@ -23,13 +24,19 @@ with col1:
         pass
 
 with col2:
-    st.markdown("<h1 style='color:#c62828;'>Citykart Revision Tool</h1>", unsafe_allow_html=True)
-    st.markdown("<h4 style='color:#2e7d32;'>Upload → Filter → Revise → Download</h4>", unsafe_allow_html=True)
+    st.markdown(
+        "<h1 style='color:#c62828;'>Citykart Revision Tool</h1>",
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        "<h4 style='color:#2e7d32;'>Upload → Filter → Revise → Download</h4>",
+        unsafe_allow_html=True
+    )
 
 st.markdown("---")
 
 # ----------------------------
-# Upload CSV
+# File Upload
 # ----------------------------
 uploaded_file = st.file_uploader(
     "Upload File",
@@ -37,26 +44,25 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is None:
-    st.info("Please upload a CSV file to continue.")
     st.stop()
 
-
+# ----------------------------
+# SAFE FILE READER
+# ----------------------------
 def read_file_safe(file):
 
-    file_name = file.name.lower()
+    name = file.name.lower()
 
-    # ---------------- CSV ----------------
-    if file_name.endswith(".csv"):
+    # ---------- CSV ----------
+    if name.endswith(".csv"):
 
         encodings = ["utf-8", "latin1", "cp1252"]
-
-        separators = [",", ";", "\t", "|"]
+        seps = [",", ";", "\t", "|"]
 
         for enc in encodings:
-            for sep in separators:
+            for sep in seps:
                 try:
                     file.seek(0)
-
                     df = pd.read_csv(
                         file,
                         encoding=enc,
@@ -64,86 +70,75 @@ def read_file_safe(file):
                         engine="python"
                     )
 
-                    # valid read check
                     if df.shape[1] > 1:
                         return df
-
                 except:
                     continue
 
-        st.error("CSV format not supported or corrupted.")
+        st.error("CSV format not supported")
         st.stop()
 
-    # ---------------- EXCEL ----------------
-    elif file_name.endswith((".xlsx", ".xls")):
-        try:
-            excel_file = pd.ExcelFile(file)
-
-            sheet = st.selectbox(
-                "Select Sheet",
-                excel_file.sheet_names
-            )
-
-            return excel_file.parse(sheet)
-
-        except Exception as e:
-            st.error(f"Excel read error: {e}")
-            st.stop()
-
+    # ---------- Excel ----------
     else:
-        st.error("Unsupported file type.")
-        st.stop()
+        excel = pd.ExcelFile(file)
 
-df = read_file_safe(uploaded_file)
-
-# Reset filters when new file uploaded
-if "last_file" not in st.session_state:
-    st.session_state.last_file = uploaded_file.name
-
-if st.session_state.last_file != uploaded_file.name:
-    st.session_state.filters = {}
-    st.session_state.last_file = uploaded_file.name
-st.success("File Uploaded Successfully")
-
-# Try converting comma-separated numbers to numeric
-for col in df.columns:
-
-    if df[col].dtype == "object":
-
-        cleaned_col = (
-            df[col]
-            .astype(str)
-            .str.replace(",", "", regex=False)
+        sheet = st.selectbox(
+            "Select Sheet",
+            excel.sheet_names
         )
 
-        converted = pd.to_numeric(cleaned_col, errors="coerce")
+        return excel.parse(sheet)
 
-        # If majority values numeric → convert column
-        if converted.notna().sum() > len(df) * 0.5:
-            df[col] = converted
+
+df = read_file_safe(uploaded_file)
+st.success("File Uploaded Successfully")
+
+# ------------------------------------------------
+# SMART NUMERIC DETECTION
+# Handles %, Currency, Float, Comma numbers
+# ------------------------------------------------
+def smart_numeric_convert(series):
+
+    original = series.astype(str)
+
+    cleaned = (
+        original
+        .str.replace(r"[₹$€,]", "", regex=True)
+        .str.replace("%", "", regex=True)
+        .str.replace(r"\s+", "", regex=True)
+    )
+
+    numeric = pd.to_numeric(cleaned, errors="coerce")
+
+    # accept column if mostly numeric
+    if numeric.notna().sum() > len(series) * 0.4:
+        return numeric
+
+    return series
+
+
+for col in df.columns:
+    if df[col].dtype == "object":
+        df[col] = smart_numeric_convert(df[col])
 
 # ----------------------------
-# Detect Columns
+# Column Detection
 # ----------------------------
-numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-non_numeric_cols = df.select_dtypes(exclude=["number"]).columns.tolist()
+numeric_cols = df.select_dtypes(include="number").columns.tolist()
+filter_columns = [c for c in df.columns if c not in numeric_cols]
 
 # ----------------------------
-# Dynamic Filters (All Non Numeric)
+# SESSION FILTER STORAGE
 # ----------------------------
-st.subheader("🔎 Select Filters")
-
-# Non numeric columns
-numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-filter_columns = [col for col in df.columns if col not in numeric_cols]
-
-# Session state store selections
-if "filters" not in st.session_state or \
-   set(st.session_state.filters.keys()) != set(filter_columns):
-
-    st.session_state.filters = {col: [] for col in filter_columns}
+if "filters" not in st.session_state:
+    st.session_state.filters = {c: [] for c in filter_columns}
 
 user_filters = st.session_state.filters
+
+# ----------------------------
+# CASCADE FILTERS (FORWARD + REVERSE)
+# ----------------------------
+st.subheader("🔎 Select Filters")
 
 cols = st.columns(3)
 
@@ -151,10 +146,8 @@ for i, col in enumerate(filter_columns):
 
     with cols[i % 3]:
 
-        # Apply OTHER filters except current column
         temp_df = df.copy()
 
-        # Apply all other selected filters
         for other_col in filter_columns:
 
             if other_col == col:
@@ -164,9 +157,9 @@ for i, col in enumerate(filter_columns):
 
             if selected_vals:
                 temp_df = temp_df[
-                    temp_df[other_col].astype(str).isin(
-                        list(map(str, selected_vals))
-                    )
+                    temp_df[other_col]
+                    .astype(str)
+                    .isin(list(map(str, selected_vals)))
                 ]
 
         options = sorted(temp_df[col].dropna().unique())
@@ -174,23 +167,26 @@ for i, col in enumerate(filter_columns):
         selected = st.multiselect(
             col,
             options,
-            default=user_filters[col],
+            default=user_filters.get(col, []),
             key=f"filter_{col}"
         )
 
         user_filters[col] = selected
 
-# -------------------------------
-# Build Final Filtered Dataset
-# -------------------------------
+# ----------------------------
+# FILTERED DATA
+# ----------------------------
 filtered_df = df.copy()
 
-for col, values in user_filters.items():
-    if values:
-        filtered_df = filtered_df[filtered_df[col].isin(values)]
+for col, vals in user_filters.items():
+    if vals:
+        filtered_df = filtered_df[
+            filtered_df[col].astype(str).isin(
+                list(map(str, vals))
+            )
+        ]
 
 c1, c2 = st.columns(2)
-
 c1.metric("Total Rows", f"{len(df):,}")
 c2.metric("Filtered Rows", f"{len(filtered_df):,}")
 
@@ -200,10 +196,6 @@ st.markdown("---")
 # Numeric Column Selection
 # ----------------------------
 st.subheader("📊 Select Numeric Column For Calculation")
-
-if not numeric_cols:
-    st.error("No numeric columns found in file.")
-    st.stop()
 
 selected_numeric_cols = st.multiselect(
     "Choose Numeric Column(s)",
@@ -215,7 +207,11 @@ selected_numeric_cols = st.multiselect(
 # ----------------------------
 st.subheader("📈 Percentage Settings")
 
-percent = st.number_input("Enter Percentage", min_value=0.0, step=1.0)
+percent = st.number_input(
+    "Enter Percentage",
+    min_value=0.0,
+    step=1.0
+)
 
 mode = st.radio(
     "Select Mode",
@@ -223,43 +219,40 @@ mode = st.radio(
 )
 
 # ----------------------------
-# Apply Function
+# APPLY FUNCTION
 # ----------------------------
 def apply_percentage(df, filters, numeric_columns, percent, mode):
 
     df_result = df.copy()
-    mask = pd.Series(True, index=df_result.index)
 
-    any_filter_applied = False
+    mask = pd.Series(True, index=df.index)
+    filter_used = False
 
-    for col, values in filters.items():
-
-        if values:   # only apply when user selected something
-            any_filter_applied = True
+    for col, vals in filters.items():
+        if vals:
+            filter_used = True
             mask &= df_result[col].astype(str).isin(
-                list(map(str, values))
+                list(map(str, vals))
             )
 
-    # If no filters selected → select all rows
-    if not any_filter_applied:
+    if not filter_used:
         mask[:] = True
 
-    # Multiplier logic
+    # multiplier
     if mode == "Increase %":
-        multiplier = 1 + percent / 100
+        mult = 1 + percent / 100
     elif mode == "Decrease %":
-        multiplier = 1 - percent / 100
+        mult = 1 - percent / 100
     else:
-        multiplier = percent / 100
+        mult = percent / 100
 
-    # Apply calculation to selected numeric columns
-    for numeric_column in numeric_columns:
+    for col in numeric_columns:
 
-        new_col_name = f"{numeric_column}_REVISED"
+        new_col = f"{col}_REVISED"
 
-        df_result[new_col_name] = df_result[numeric_column]
-        df_result.loc[mask, new_col_name] = (
-            df_result.loc[mask, numeric_column] * multiplier
+        df_result[new_col] = df_result[col]
+        df_result.loc[mask, new_col] = (
+            df_result.loc[mask, col] * mult
         )
 
     df_result["NEW_STATUS"] = "SAME"
@@ -267,23 +260,24 @@ def apply_percentage(df, filters, numeric_columns, percent, mode):
 
     return df_result
 
-st.info(
-    f"Rows Impacted After Apply: {len(filtered_df):,}"
-)
+
+st.info(f"Rows Impacted After Apply: {len(filtered_df):,}")
 
 # ----------------------------
-# Apply Button
+# APPLY BUTTON
 # ----------------------------
 if st.button("🚀 Apply Changes"):
 
     if percent == 0:
-        st.warning("Please enter percentage greater than 0")
+        st.warning("Enter percentage > 0")
         st.stop()
 
-    # ✅ If user didn't select numeric column → take all
+    # If none selected → all numeric
     if not selected_numeric_cols:
         selected_numeric_cols = numeric_cols
-        st.info("No numeric column selected → Applying on ALL numeric columns")
+        st.info(
+            "No numeric column selected → Applying on ALL numeric columns"
+        )
 
     active_filters = {
         k: v for k, v in user_filters.items() if v
@@ -301,11 +295,11 @@ if st.button("🚀 Apply Changes"):
 
     st.dataframe(result_df, use_container_width=True)
 
-    csv = result_df.to_csv(index=False).encode("utf-8")
+    csv_out = result_df.to_csv(index=False).encode("utf-8")
 
     st.download_button(
-        label="⬇ Download Result CSV",
-        data=csv,
+        "⬇ Download Result",
+        csv_out,
         file_name=f"output_{dt.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv"
     )
